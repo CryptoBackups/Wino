@@ -1,0 +1,26 @@
+[Unit]
+Description=WINO's distributed currency daemon
+After=network.target
+
+[Service]
+User=wino
+Group=wino
+
+Type=forking
+PIDFile=/var/lib/winod/winod.pid
+
+ExecStart=/usr/bin/winod -daemon -pid=/var/lib/winod/winod.pid \
+          -conf=/etc/wino/wino.conf -datadir=/var/lib/winod
+
+ExecStop=-/usr/bin/wino-cli -conf=/etc/wino/wino.conf \
+         -datadir=/var/lib/winod stop
+
+Restart=always
+PrivateTmp=true
+TimeoutStopSec=60s
+TimeoutStartSec=2s
+StartLimitInterval=120s
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

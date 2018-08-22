@@ -1,0 +1,11 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=WINO
+Comment=WINO P2P Cryptocurrency
+Exec=wino-qt %u
+Terminal=false
+Type=Application
+Icon=wino128
+MimeType=x-scheme-handler/wino;
+Categories=Office;Finance;
+Name[en_US]=wino-qt.desktop

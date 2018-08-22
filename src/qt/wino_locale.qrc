@@ -1,0 +1,20 @@
+<!DOCTYPE RCC><RCC version="1.0">
+    <qresource prefix="/translations">
+        <file alias="bg">locale/wino_bg.qm</file>
+        <file alias="de">locale/wino_de.qm</file>
+        <file alias="en">locale/wino_en.qm</file>
+        <file alias="es">locale/wino_es.qm</file>
+        <file alias="fi">locale/wino_fi.qm</file>
+        <file alias="fr">locale/wino_fr.qm</file>
+        <file alias="it">locale/wino_it.qm</file>
+        <file alias="ja">locale/wino_ja.qm</file>
+        <file alias="pl">locale/wino_pl.qm</file>
+        <file alias="pt">locale/wino_pt.qm</file>
+        <file alias="ru">locale/wino_ru.qm</file>
+        <file alias="sk">locale/wino_sk.qm</file>
+        <file alias="sv">locale/wino_sv.qm</file>
+        <file alias="vi">locale/wino_vi.qm</file>
+        <file alias="zh_CN">locale/wino_zh_CN.qm</file>
+        <file alias="zh_TW">locale/wino_zh_TW.qm</file>
+    </qresource>
+</RCC>
