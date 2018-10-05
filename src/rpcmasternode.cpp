@@ -500,90 +500,77 @@ Value masternode(const Array& params, bool fHelp)
 
 Value masternodelist(const Array& params, bool fHelp)
 {
-    std::string strMode = "status";
-    std::string strFilter = "";
+   std::string strFilter = "";
 
-    if (params.size() >= 1) strMode = params[0].get_str();
-    if (params.size() == 2) strFilter = params[1].get_str();
+    if (params.size() == 1) strFilter = params[0].get_str();
 
-    if (fHelp ||
-        (strMode != "status" && strMode != "vin" && strMode != "pubkey" && strMode != "lastseen" && strMode != "activeseconds" && strMode != "rank" && strMode != "addr" && strMode != "protocol" && strMode != "full" && strMode != "lastpaid")) {
+    if (fHelp || (params.size() > 1))
         throw runtime_error(
-            "masternodelist ( \"mode\" \"filter\" )\n"
-            "Get a list of masternodes in different modes\n"
+            "listmasternodes ( \"filter\" )\n"
+            "\nGet a ranked list of masternodes\n"
+
             "\nArguments:\n"
-            "1. \"mode\"      (string, optional/required to use filter, defaults = status) The mode to run list in\n"
-            "2. \"filter\"    (string, optional) Filter results. Partial match by IP by default in all modes,\n"
-            "                                    additional matches in some modes are also available\n"
-            "\nAvailable modes:\n"
-            "  activeseconds  - Print number of seconds masternode recognized by the network as enabled\n"
-            "                   (since latest issued \"masternode start/start-many/start-alias\")\n"
-            "  addr           - Print ip address associated with a masternode (can be additionally filtered, partial match)\n"
-            "  full           - Print info in format 'status protocol pubkey IP lastseen activeseconds lastpaid'\n"
-            "                   (can be additionally filtered, partial match)\n"
-            "  lastseen       - Print timestamp of when a masternode was last seen on the network\n"
-            "  lastpaid       - The last time a node was paid on the network\n"
-            "  protocol       - Print protocol of a masternode (can be additionally filtered, exact match))\n"
-            "  pubkey         - Print public key associated with a masternode (can be additionally filtered,\n"
-            "                   partial match)\n"
-            "  rank           - Print rank of a masternode based on current block\n"
-            "  status         - Print masternode status: ENABLED / EXPIRED / VIN_SPENT / REMOVE / POS_ERROR\n"
-            "                   (can be additionally filtered, partial match)\n");
+            "1. \"filter\"    (string, optional) Filter search text. Partial match by txhash, status, or addr.\n"
+
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"rank\": n,           (numeric) Masternode Rank (or 0 if not enabled)\n"
+            "    \"txhash\": \"hash\",    (string) Collateral transaction hash\n"
+            "    \"outidx\": n,         (numeric) Collateral transaction output index\n"
+            "    \"status\": s,         (string) Status (ENABLED/EXPIRED/REMOVE/etc)\n"
+            "    \"addr\": \"addr\",      (string) Masternode Civitas address\n"
+            "    \"version\": v,        (numeric) Masternode protocol version\n"
+            "    \"lastseen\": ttt,     (numeric) The time in seconds since epoch (Jan 1 1970 GMT) of the last seen\n"
+            "    \"activetime\": ttt,   (numeric) The time in seconds since epoch (Jan 1 1970 GMT) masternode has been active\n"
+            "    \"lastpaid\": ttt,     (numeric) The time in seconds since epoch (Jan 1 1970 GMT) masternode was last paid\n"
+            "  }\n"
+            "  ,...\n"
+            "]\n");
+
+    Array ret;
+    int nHeight;
+    {
+        LOCK(cs_main);
+        CBlockIndex* pindex = chainActive.Tip();
+        if(!pindex) return 0;
+        nHeight = pindex->nHeight;
     }
+    std::vector<pair<int, CMasternode> > vMasternodeRanks = mnodeman.GetMasternodeRanks(nHeight);
+    BOOST_FOREACH (PAIRTYPE(int, CMasternode) & s, vMasternodeRanks) {
+        Object obj;
+        std::string strVin = s.second.vin.prevout.ToStringShort();
+        std::string strTxHash = s.second.vin.prevout.hash.ToString();
+        uint32_t oIdx = s.second.vin.prevout.n;
 
-    Object obj;
-    if (strMode == "rank") {
-        std::vector<pair<int, CMasternode> > vMasternodeRanks = mnodeman.GetMasternodeRanks(chainActive.Tip()->nHeight);
-        BOOST_FOREACH (PAIRTYPE(int, CMasternode) & s, vMasternodeRanks) {
-            std::string strVin = s.second.vin.prevout.ToStringShort();
-            if (strFilter != "" && strVin.find(strFilter) == string::npos) continue;
-            obj.push_back(Pair(strVin, s.first));
-        }
-    } else {
-        std::vector<CMasternode> vMasternodes = mnodeman.GetFullMasternodeVector();
-        BOOST_FOREACH (CMasternode& mn, vMasternodes) {
-            std::string strVin = mn.vin.prevout.ToStringShort();
-            if (strMode == "activeseconds") {
-                if (strFilter != "" && strVin.find(strFilter) == string::npos) continue;
-                obj.push_back(Pair(strVin, (int64_t)(mn.lastPing.sigTime - mn.sigTime)));
-            } else if (strMode == "addr") {
-                if (strFilter != "" && mn.vin.prevout.hash.ToString().find(strFilter) == string::npos &&
-                    strVin.find(strFilter) == string::npos) continue;
-                obj.push_back(Pair(strVin, mn.addr.ToString()));
-            } else if (strMode == "full") {
-                std::ostringstream addrStream;
-                addrStream << setw(21) << strVin;
+        CMasternode* mn = mnodeman.Find(s.second.vin);
 
-                std::ostringstream stringStream;
-                stringStream << setw(9) << mn.Status() << " " << mn.protocolVersion << " " << CBitcoinAddress(mn.pubKeyCollateralAddress.GetID()).ToString() << " " << setw(21) << mn.addr.ToString() << " " << (int64_t)mn.lastPing.sigTime << " " << setw(8) << (int64_t)(mn.lastPing.sigTime - mn.sigTime) << " " << (int64_t)mn.GetLastPaid();
-                std::string output = stringStream.str();
-                stringStream << " " << strVin;
-                if (strFilter != "" && stringStream.str().find(strFilter) == string::npos &&
-                    strVin.find(strFilter) == string::npos) continue;
-                obj.push_back(Pair(addrStream.str(), output));
-            } else if (strMode == "lastseen") {
-                if (strFilter != "" && strVin.find(strFilter) == string::npos) continue;
-                obj.push_back(Pair(strVin, (int64_t)mn.lastPing.sigTime));
-            } else if (strMode == "lastpaid") {
-                if (strFilter != "" && mn.vin.prevout.hash.ToString().find(strFilter) == string::npos &&
-                    strVin.find(strFilter) == string::npos) continue;
-                obj.push_back(Pair(strVin, (int64_t)mn.GetLastPaid()));
-            } else if (strMode == "protocol") {
-                if (strFilter != "" && strFilter != strprintf("%d", mn.protocolVersion) &&
-                    strVin.find(strFilter) == string::npos) continue;
-                obj.push_back(Pair(strVin, (int64_t)mn.protocolVersion));
-            } else if (strMode == "pubkey") {
-                CBitcoinAddress address(mn.pubKeyCollateralAddress.GetID());
+        if (mn != NULL) {
+            if (strFilter != "" && strTxHash.find(strFilter) == string::npos &&
+                mn->Status().find(strFilter) == string::npos &&
+                CBitcoinAddress(mn->pubKeyCollateralAddress.GetID()).ToString().find(strFilter) == string::npos) continue;
 
-                if (strFilter != "" && address.ToString().find(strFilter) == string::npos &&
-                    strVin.find(strFilter) == string::npos) continue;
-                obj.push_back(Pair(strVin, address.ToString()));
-            } else if (strMode == "status") {
-                std::string strStatus = mn.Status();
-                if (strFilter != "" && strVin.find(strFilter) == string::npos && strStatus.find(strFilter) == string::npos) continue;
-                obj.push_back(Pair(strVin, strStatus));
-            }
+            std::string strStatus = mn->Status();
+            std::string strHost;
+            int port;
+            SplitHostPort(mn->addr.ToString(), port, strHost);
+            CNetAddr node = CNetAddr(strHost, false);
+            std::string strNetwork = GetNetworkName(node.GetNetwork());
+
+            obj.push_back(Pair("rank", (strStatus == "ENABLED" ? s.first : 0)));
+            obj.push_back(Pair("network", strNetwork));
+            obj.push_back(Pair("txhash", strTxHash));
+            obj.push_back(Pair("outidx", (uint64_t)oIdx));
+            obj.push_back(Pair("status", strStatus));
+            obj.push_back(Pair("addr", CBitcoinAddress(mn->pubKeyCollateralAddress.GetID()).ToString()));
+            obj.push_back(Pair("version", mn->protocolVersion));
+            obj.push_back(Pair("lastseen", (int64_t)mn->lastPing.sigTime));
+            obj.push_back(Pair("activetime", (int64_t)(mn->lastPing.sigTime - mn->sigTime)));
+            obj.push_back(Pair("lastpaid", (int64_t)mn->GetLastPaid()));
+
+            ret.push_back(obj);
         }
     }
-    return obj;
+
+return ret;
 }
